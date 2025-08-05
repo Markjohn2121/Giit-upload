@@ -2,13 +2,13 @@ require("dotenv").config();
 const express = require("express");
 const multer = require("multer");
 const axios = require("axios");
-const cors = require("cors"); // Added for CORS support
+const cors = require("cors");
 
 const app = express();
 
 // Middleware
-app.use(cors()); // Enable CORS for all routes
-app.use(express.json()); // For parsing application/json
+app.use(cors());
+app.use(express.json());
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -63,35 +63,46 @@ async function uploadToGitHub(path, contentBuffer) {
 
 // Health check endpoint
 app.get("/", (req, res) => {
-  res.status(200).json({ status: "OK", message: "Server is running" });
+  res.status(200).json({ 
+    status: "OK", 
+    message: "GitHub File Upload Server is running" 
+  });
 });
 
-app.post("/upload", upload.fields([{ name: "profileImage" }, { name: "coverImage" }]), async (req, res) => {
+// File upload endpoint
+app.post("/upload", upload.fields([{ name: "file1" }, { name: "file2" }]), async (req, res) => {
   try {
-    const username = req.body.username;
-    if (!username || !req.files?.profileImage || !req.files?.coverImage) {
-      return res.status(400).json({ error: "Missing fields or files" });
+    const folder = req.body.folder || "uploads";
+    const results = {};
+    
+    if (req.files.file1) {
+      const file1 = req.files.file1[0];
+      const file1Path = `${folder}/${file1.originalname}`;
+      results.file1URL = await uploadToGitHub(file1Path, file1.buffer);
     }
-
-    const folder = `profiles/${username}`;
-    const profileBuffer = req.files.profileImage[0].buffer;
-    const profileName = req.files.profileImage[0].originalname;
-    const coverBuffer = req.files.coverImage[0].buffer;
-    const coverName = req.files.coverImage[0].originalname;
-
-    const profilePath = `${folder}/${profileName}`;
-    const coverPath = `${folder}/${coverName}`;
-
-    const profileURL = await uploadToGitHub(profilePath, profileBuffer);
-    const coverURL = await uploadToGitHub(coverPath, coverBuffer);
-
+    
+    if (req.files.file2) {
+      const file2 = req.files.file2[0];
+      const file2Path = `${folder}/${file2.originalname}`;
+      results.file2URL = await uploadToGitHub(file2Path, file2.buffer);
+    }
+    
+    // Validate at least one file was uploaded
+    if (!req.files.file1 && !req.files.file2) {
+      return res.status(400).json({ error: "At least one file is required" });
+    }
+    
     res.json({
-      profileURL,
-      coverURL,
+      success: true,
+      message: "Files uploaded successfully",
+      ...results
     });
   } catch (err) {
     console.error(err.response?.data || err);
-    res.status(500).json({ error: "Upload failed", details: err.message });
+    res.status(500).json({ 
+      error: "Upload failed", 
+      details: err.message 
+    });
   }
 });
 
