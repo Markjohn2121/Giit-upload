@@ -1,10 +1,15 @@
 require("dotenv").config();
 const express = require("express");
 const multer = require("multer");
-const fs = require("fs");
 const axios = require("axios");
+const cors = require("cors"); // Added for CORS support
 
 const app = express();
+
+// Middleware
+app.use(cors()); // Enable CORS for all routes
+app.use(express.json()); // For parsing application/json
+
 const upload = multer({ storage: multer.memoryStorage() });
 
 const {
@@ -56,10 +61,15 @@ async function uploadToGitHub(path, contentBuffer) {
   return `${RAW_BASE}/${path}`;
 }
 
+// Health check endpoint
+app.get("/", (req, res) => {
+  res.status(200).json({ status: "OK", message: "Server is running" });
+});
+
 app.post("/upload", upload.fields([{ name: "profileImage" }, { name: "coverImage" }]), async (req, res) => {
   try {
     const username = req.body.username;
-    if (!username || !req.files.profileImage || !req.files.coverImage) {
+    if (!username || !req.files?.profileImage || !req.files?.coverImage) {
       return res.status(400).json({ error: "Missing fields or files" });
     }
 
@@ -81,8 +91,14 @@ app.post("/upload", upload.fields([{ name: "profileImage" }, { name: "coverImage
     });
   } catch (err) {
     console.error(err.response?.data || err);
-    res.status(500).json({ error: "Upload failed" });
+    res.status(500).json({ error: "Upload failed", details: err.message });
   }
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: "Something went wrong!" });
 });
 
 const PORT = process.env.PORT || 3000;
